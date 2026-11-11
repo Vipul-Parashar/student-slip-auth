@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: student-slip-auth
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_NAME=Smart QR Student Slip Authentication
+      - DEBUG=False
+      - SECRET_KEY=replace-with-a-very-secure-random-secret-key-32chars
+      - HMAC_SECRET=replace-with-another-secure-secret-key-for-hmac
+      - VERIFY_BASE_URL=http://localhost:8000
+      - DATABASE_URL=sqlite:///data/slips.db
+      - ADMIN_USERNAME=admin
+      - ADMIN_PASSWORD=AdminPassword@2026
+    volumes:
+      - slip_data:/app/data
+      - slip_storage:/app/app/storage
+      - slip_backups:/app/backups
+    restart: unless-stopped
+
+volumes:
+  slip_data:
+  slip_storage:
+  slip_backups:

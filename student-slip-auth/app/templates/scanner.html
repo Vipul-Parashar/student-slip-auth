@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Scan &amp; Verify Student Slip</h1>
+        <p class="page-subtitle">Real-time authenticity check using live camera or uploaded slip image</p>
+    </div>
+    <div>
+        <a href="/history" class="btn btn-secondary">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            Audit History
+        </a>
+    </div>
+</div>
+
+<div class="scanner-container">
+    <!-- Camera Viewport Card -->
+    <div class="card" style="text-align: center; margin-bottom: 1.5rem;">
+        <div class="scanner-viewport-wrapper">
+            <div id="reader"></div>
+            <div id="reader-hidden-file" style="display: none;"></div>
+
+            <!-- Optical targeting reticle -->
+            <div class="scanner-target-box">
+                <span class="scanner-target-corner corner-tl"></span>
+                <span class="scanner-target-corner corner-tr"></span>
+                <span class="scanner-target-corner corner-bl"></span>
+                <span class="scanner-target-corner corner-br"></span>
+                <div id="scannerLaser" class="scanner-laser" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Camera Control Buttons -->
+        <div style="display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
+            <button id="startCameraBtn" class="btn btn-primary btn-lg">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                Start Camera Scan
+            </button>
+            <button id="stopCameraBtn" class="btn btn-danger btn-lg" style="display: none;">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"></path></svg>
+                Stop Camera
+            </button>
+            <button id="switchCameraBtn" class="btn btn-secondary btn-lg" style="display: none;">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                Switch Camera
+            </button>
+        </div>
+        <p style="font-size: 0.8125rem; color: var(--slate-500); margin-top: 0.75rem;">
+            Works with any webcam, laptop camera, or mobile device browser (Chrome, Safari, Firefox, Edge).
+        </p>
+    </div>
+
+    <!-- Alternative: Drag & Drop / File Upload Card -->
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <h2 class="card-title" style="font-size: 1rem;">Alternative: Upload Slip QR Image</h2>
+        <p class="card-subtitle">If camera is unavailable, select or drop a generated QR image file (PNG/JPG)</p>
+
+        <div id="qrDropZone" style="border: 2px dashed var(--slate-300); border-radius: 12px; padding: 1.75rem; text-align: center; background-color: var(--slate-50); cursor: pointer; transition: all 0.2s;" onclick="document.getElementById('qrFileInput').click();">
+            <svg width="36" height="36" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="color: var(--slate-400); margin: 0 auto 0.5rem auto;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            <div style="font-weight: 600; font-size: 0.875rem; color: var(--slate-700);">Click to browse or drag & drop QR code image</div>
+            <div style="font-size: 0.75rem; color: var(--slate-500); margin-top: 0.25rem;">Supports Slip_001.png, photos, or screenshots</div>
+            <input type="file" id="qrFileInput" accept="image/*" style="display: none;">
+        </div>
+    </div>
+
+    <!-- Fallback: Manual Slip ID Lookup -->
+    <div class="card">
+        <h2 class="card-title" style="font-size: 1rem;">Manual Slip ID Verification</h2>
+        <form id="manualLookupForm" style="display: flex; gap: 0.5rem;">
+            <input class="form-input" type="text" id="manualPayloadInput" placeholder="Enter Slip ID (e.g. Slip_001) or full verify URL" required>
+            <button type="submit" class="btn btn-secondary" style="flex-shrink: 0;">Verify ID</button>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Dialog for Verification Result (The 4 Official States) -->
+<div id="resultModal" class="modal-backdrop" style="display: none;" onclick="if(event.target===this) closeResultModal();">
+    <div style="width: 100%; max-width: 480px; position: relative;">
+        <button onclick="closeResultModal()" style="position: absolute; top: -14px; right: -14px; width: 32px; height: 32px; border-radius: 50%; background: #ffffff; border: 1px solid var(--slate-300); font-weight: bold; cursor: pointer; box-shadow: var(--shadow-md); z-index: 60;" title="Close">
+            &times;
+        </button>
+        <div id="modalResultContainer">
+            <!-- Dynamically populated by scanner.js -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/html5-qrcode.min.js"></script>
+<script src="/static/js/scanner.js"></script>
+{% endblock %}

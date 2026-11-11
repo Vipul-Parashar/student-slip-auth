@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Manage Student Slips</h1>
+        <p class="page-subtitle">Search, inspect authenticity records, revoke suspicious codes, and track redemption</p>
+    </div>
+    <div style="display: flex; gap: 0.75rem;">
+        <a href="/generate" class="btn btn-primary">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            Generate More
+        </a>
+    </div>
+</div>
+
+<!-- Search & Filter Controls -->
+<div class="card" style="margin-bottom: 1.5rem; padding: 1.25rem;">
+    <form method="GET" action="/manage" style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+        <!-- Search box -->
+        <div style="flex: 1; min-width: 240px;">
+            <input class="form-input" type="text" name="q" value="{{ q }}" placeholder="Search by Slip ID or Batch...">
+        </div>
+
+        <!-- Status Filter -->
+        <div style="min-width: 160px;">
+            <select class="form-select" name="status_filter" onchange="this.form.submit()">
+                <option value="ALL" {% if status_filter == 'ALL' %}selected{% endif %}>All Statuses</option>
+                <option value="ACTIVE" {% if status_filter == 'ACTIVE' %}selected{% endif %}>Active / Unused</option>
+                <option value="REDEEMED" {% if status_filter == 'REDEEMED' %}selected{% endif %}>Redeemed Only</option>
+                <option value="REVOKED" {% if status_filter == 'REVOKED' %}selected{% endif %}>Revoked Only</option>
+            </select>
+        </div>
+
+        <button type="submit" class="btn btn-secondary">Filter</button>
+        {% if q or status_filter != 'ALL' %}
+        <a href="/manage" class="btn btn-secondary btn-sm" style="color: var(--slate-500);">Clear</a>
+        {% endif %}
+    </form>
+</div>
+
+<!-- Slips Table -->
+<div class="card" style="padding: 0; overflow: hidden;">
+    <div class="table-responsive" style="border: none; border-radius: 0;">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Slip ID</th>
+                    <th>Batch</th>
+                    <th>Created (UTC)</th>
+                    <th>Current Status</th>
+                    <th>Redemption Info</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if slips %}
+                {% for slip in slips %}
+                <tr>
+                    <td style="font-weight: 700; font-family: monospace; color: var(--slate-900);">
+                        {{ slip.slip_id }}
+                    </td>
+                    <td style="font-size: 0.75rem; color: var(--slate-500); font-family: monospace;">
+                        {{ slip.batch_id or 'Manual' }}
+                    </td>
+                    <td style="font-size: 0.8125rem; color: var(--slate-600);">
+                        {{ slip.created_at.strftime('%Y-%m-%d %H:%M') if slip.created_at else '-' }}
+                    </td>
+                    <td>
+                        {% if slip.status == 'REVOKED' %}
+                            <span class="badge badge-revoked"><span class="badge-dot"></span>Revoked</span>
+                            {% if slip.revoked_at %}
+                            <div style="font-size: 0.6875rem; color: #991b1b; margin-top: 2px;">
+                                {{ slip.revoked_at.strftime('%m/%d %H:%M') }}
+                            </div>
+                            {% endif %}
+                        {% elif slip.is_redeemed %}
+                            <span class="badge badge-redeemed"><span class="badge-dot"></span>Redeemed</span>
+                        {% else %}
+                            <span class="badge badge-active"><span class="badge-dot"></span>Active</span>
+                        {% endif %}
+                    </td>
+                    <td style="font-size: 0.8125rem;">
+                        {% if slip.is_redeemed %}
+                            <span style="color: var(--slate-700); font-weight: 500;">
+                                Redeemed: {{ slip.redeemed_at.strftime('%Y-%m-%d %H:%M') if slip.redeemed_at else 'Yes' }}
+                            </span>
+                            <div style="font-size: 0.75rem; color: var(--slate-400);">By: {{ slip.redeemed_by or 'Staff' }}</div>
+                        {% else %}
+                            <span style="color: var(--slate-400);">Not redeemed</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <!-- Download/View QR -->
+                            <a href="/download/qr/{{ slip.slip_id }}" target="_blank" class="btn btn-secondary btn-sm" title="View/Download printable QR">
+                                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                                QR
+                            </a>
+
+                            <!-- Redeem button (if active & not redeemed) -->
+                            {% if not slip.is_redeemed and slip.status != 'REVOKED' %}
+                            <button onclick="redeemSlipAdmin('{{ slip.slip_id }}')" class="btn btn-secondary btn-sm" title="Mark as Redeemed">
+                                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                Redeem
+                            </button>
+                            {% endif %}
+
+                            <!-- Revoke / Reactivate toggle -->
+                            {% if slip.status == 'REVOKED' %}
+                            <button onclick="toggleRevokeSlip('{{ slip.slip_id }}', 'unrevoke')" class="btn btn-secondary btn-sm" style="color: var(--success); font-weight: 600;">
+                                Un-Revoke
+                            </button>
+                            {% else %}
+                            <button onclick="toggleRevokeSlip('{{ slip.slip_id }}', 'revoke')" class="btn btn-secondary btn-sm" style="color: var(--danger); font-weight: 600;">
+                                Revoke
+                            </button>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% else %}
+                <tr>
+                    <td colspan="6" style="text-align: center; padding: 3rem; color: var(--slate-400);">
+                        No student slips match the current filter criteria.
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination Footer -->
+    {% if total_pages > 1 %}
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.5rem; background: var(--slate-50); border-top: 1px solid var(--slate-200);">
+        <div style="font-size: 0.8125rem; color: var(--slate-500);">
+            Showing page <strong>{{ current_page }}</strong> of <strong>{{ total_pages }}</strong> ({{ total_items }} total slips)
+        </div>
+        <div style="display: flex; gap: 0.35rem;">
+            {% if current_page > 1 %}
+            <a href="/manage?page={{ current_page - 1 }}&q={{ q }}&status_filter={{ status_filter }}" class="btn btn-secondary btn-sm">&larr; Previous</a>
+            {% endif %}
+            {% if current_page < total_pages %}
+            <a href="/manage?page={{ current_page + 1 }}&q={{ q }}&status_filter={{ status_filter }}" class="btn btn-secondary btn-sm">Next &rarr;</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function toggleRevokeSlip(slipId, action) {
+    const confirmMsg = action === 'revoke'
+        ? `Are you sure you want to REVOKE slip '${slipId}'? It will immediately fail scanner verification.`
+        : `Reactivate slip '${slipId}' to ACTIVE status?`;
+
+    if (!confirm(confirmMsg)) return;
+
+    try {
+        const resp = await fetch("/api/slips/revoke", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ slip_id: slipId, reason: "Admin status toggle" })
+        });
+        const data = await resp.json();
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert(data.message || "Failed to update slip status.");
+        }
+    } catch (e) {
+        alert("Network error.");
+    }
+}
+
+async function redeemSlipAdmin(slipId) {
+    if (!confirm(`Mark slip '${slipId}' as REDEEMED (used)?`)) return;
+
+    try {
+        const resp = await fetch("/api/slips/redeem", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ slip_id: slipId })
+        });
+        const data = await resp.json();
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert(data.message || "Failed to redeem slip.");
+        }
+    } catch (e) {
+        alert("Network error.");
+    }
+}
+</script>
+{% endblock %}
